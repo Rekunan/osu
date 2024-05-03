@@ -2,107 +2,75 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
+using System.Linq;
 using osu.Game.Rulesets.Difficulty.Preprocessing;
-using osu.Game.Rulesets.Osu.Difficulty.Preprocessing;
-using osu.Game.Rulesets.Osu.Objects;
 
 namespace osu.Game.Rulesets.Osu.Difficulty.Evaluators
 {
     public static class RhythmEvaluator
     {
-        private const int history_time_max = 5000; // 5 seconds of calculatingRhythmBonus max.
-        private const double rhythm_multiplier = 0.75;
+        /// <summary>
+        /// The amount of past hit objects (including the current) to consider.
+        /// </summary>
+        private const int maxobjectcount = 16;
 
         /// <summary>
-        /// Calculates a rhythm multiplier for the difficulty of the tap associated with historic data of the current <see cref="OsuDifficultyHitObject"/>.
+        /// The amount of iterations for the coefficient.
         /// </summary>
+        private const int coefiterations = 8;
+
         public static double EvaluateDifficultyOf(DifficultyHitObject current)
         {
-            if (current.BaseObject is Spinner)
-                return 0;
+            // Get the delta times for the past hit objects.
+            double[] deltaTimes = Enumerable.Range(0, maxobjectcount)
+                .TakeWhile(x => current.Previous(x - 1) is not null)
+                .Select(x => current.Previous(x - 1).DeltaTime).ToArray();
 
-            int previousIslandSize = 0;
+            double entropy = 0;
 
-            double rhythmComplexitySum = 0;
-            int islandSize = 1;
-            double startRatio = 0; // store the ratio of the current start of an island to buff for tighter rhythms
-
-            bool firstDeltaSwitch = false;
-
-            int historicalNoteCount = Math.Min(current.Index, 32);
-
-            int rhythmStart = 0;
-
-            while (rhythmStart < historicalNoteCount - 2 && current.StartTime - current.Previous(rhythmStart).StartTime < history_time_max)
-                rhythmStart++;
-
-            for (int i = rhythmStart; i > 0; i--)
+            // Calculate the probability of occurrence for each delta time in the past window of delta times and adjust the entropy.
+            foreach (double x in deltaTimes)
             {
-                OsuDifficultyHitObject currObj = (OsuDifficultyHitObject)current.Previous(i - 1);
-                OsuDifficultyHitObject prevObj = (OsuDifficultyHitObject)current.Previous(i);
-                OsuDifficultyHitObject lastObj = (OsuDifficultyHitObject)current.Previous(i + 1);
+                double probability = p(x, deltaTimes);
 
-                double currHistoricalDecay = (history_time_max - (current.StartTime - currObj.StartTime)) / history_time_max; // scales note 0 to 1 from history to now
-
-                currHistoricalDecay = Math.Min((double)(historicalNoteCount - i) / historicalNoteCount, currHistoricalDecay); // either we're limited by time or limited by object count.
-
-                double currDelta = currObj.StrainTime;
-                double prevDelta = prevObj.StrainTime;
-                double lastDelta = lastObj.StrainTime;
-                double currRatio = 1.0 + 6.0 * Math.Min(0.5, Math.Pow(Math.Sin(Math.PI / (Math.Min(prevDelta, currDelta) / Math.Max(prevDelta, currDelta))), 2)); // fancy function to calculate rhythmbonuses.
-
-                double windowPenalty = Math.Min(1, Math.Max(0, Math.Abs(prevDelta - currDelta) - currObj.HitWindowGreat * 0.3) / (currObj.HitWindowGreat * 0.3));
-
-                windowPenalty = Math.Min(1, windowPenalty);
-
-                double effectiveRatio = windowPenalty * currRatio;
-
-                if (firstDeltaSwitch)
-                {
-                    if (!(prevDelta > 1.25 * currDelta || prevDelta * 1.25 < currDelta))
-                    {
-                        if (islandSize < 7)
-                            islandSize++; // island is still progressing, count size.
-                    }
-                    else
-                    {
-                        if (current.Previous(i - 1).BaseObject is Slider) // bpm change is into slider, this is easy acc window
-                            effectiveRatio *= 0.125;
-
-                        if (current.Previous(i).BaseObject is Slider) // bpm change was from a slider, this is easier typically than circle -> circle
-                            effectiveRatio *= 0.25;
-
-                        if (previousIslandSize == islandSize) // repeated island size (ex: triplet -> triplet)
-                            effectiveRatio *= 0.25;
-
-                        if (previousIslandSize % 2 == islandSize % 2) // repeated island polartiy (2 -> 4, 3 -> 5)
-                            effectiveRatio *= 0.50;
-
-                        if (lastDelta > prevDelta + 10 && prevDelta > currDelta + 10) // previous increase happened a note ago, 1/1->1/2-1/4, dont want to buff this.
-                            effectiveRatio *= 0.125;
-
-                        rhythmComplexitySum += Math.Sqrt(effectiveRatio * startRatio) * currHistoricalDecay * Math.Sqrt(4 + islandSize) / 2 * Math.Sqrt(4 + previousIslandSize) / 2;
-
-                        startRatio = effectiveRatio;
-
-                        previousIslandSize = islandSize; // log the last island size.
-
-                        if (prevDelta * 1.25 < currDelta) // we're slowing down, stop counting
-                            firstDeltaSwitch = false; // if we're speeding up, this stays true and  we keep counting island size.
-
-                        islandSize = 1;
-                    }
-                }
-                else if (prevDelta > 1.25 * currDelta) // we want to be speeding up.
-                {
-                    // Begin counting island until we change speed again.
-                    firstDeltaSwitch = true;
-                    startRatio = effectiveRatio;
-                    islandSize = 1;
-                }
+                entropy += -probability * Math.Log(probability);
             }
 
-            return Math.Sqrt(4 + rhythmComplexitySum * rhythm_multiplier) / 2; //produces multiplier that can be applied to strain. range [1, infinity) (not really though)
+            return entropy * 0.4;
         }
+
+        private static double p(double x, double[] deltaTimes)
+        {
+            // Calculates the coefficient for the rhythmic difference between two delta times.
+            double coef(double x, double i)
+                => Enumerable.Range(1, coefiterations)
+                     .Sum(n => Math.Pow(Math.Cos(x / i * n * Math.PI), 8) / biggestPrimeFactor[n])
+                     / Enumerable.Range(1, coefiterations).Sum(x => 1d / biggestPrimeFactor[x]);
+
+            double probability = 0;
+
+            // Calculate the probability of occurrence for a delta time x in the past window of delta times.
+            foreach (double i in deltaTimes)
+                probability += coef(x, i);
+
+            // Get the average probability.
+            return probability / deltaTimes.Length;
+        }
+
+        /// <summary>
+        /// An array with the biggest prime factor of the index.
+        /// </summary>
+        private static int[] biggestPrimeFactor = new int[]
+        {
+            0,
+            1,
+            2,
+            3,
+            2,
+            5,
+            3,
+            7,
+            2
+        };
     }
 }
