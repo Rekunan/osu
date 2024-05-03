@@ -36,7 +36,7 @@ namespace osu.Game.Rulesets.Osu.Difficulty.Evaluators
                 entropy += -probability * Math.Log(probability);
             }
 
-            return entropy * 0.4;
+            return Math.Sqrt(entropy) / 2;
         }
 
         private static double p(double x, double[] deltaTimes)
