@@ -88,17 +88,17 @@ namespace osu.Game.Rulesets.Osu.Difficulty.Evaluators
                 double sin = Math.Pow(Math.Sin(cos * Math.PI / 2), coefsinepower);
 
                 // TODO: why do we divide by the biggest prime factor
-                coef += sin / biggestPrimeFactor[i - 1];
+                coef += sin / biggestprimefactor[i - 1];
             }
 
             // TODO: why do we divide by the inverse sum of the biggest prime factors
-            return coef / inverseBiggestPrimeFactorSum;
+            return coef / inversebiggestprimefactorsum;
         }
 
         /// <summary>
         /// A lookup table with the biggest prime factors, starting at the number 1.
         /// </summary>
-        private static int[] biggestPrimeFactor =
+        private static readonly int[] biggestprimefactor =
         [
             1, // 1, actually undefined but we for our needs we'll consider it 1
             2, // 2
@@ -111,8 +111,8 @@ namespace osu.Game.Rulesets.Osu.Difficulty.Evaluators
         ];
 
         /// <summary>
-        /// The inverse sum of the first <see cref="coefiterations"/> numbers in <see cref="biggestPrimeFactor"/>.
+        /// The inverse sum of the first <see cref="coefiterations"/> numbers in <see cref="biggestprimefactor"/>.
         /// </summary>
-        private static double inverseBiggestPrimeFactorSum = biggestPrimeFactor.Take(coefiterations).Sum(x => 1d / x);
+        private static readonly double inversebiggestprimefactorsum = biggestprimefactor.Take(coefiterations).Sum(x => 1d / x);
     }
 }
