@@ -46,7 +46,7 @@ namespace osu.Game.Rulesets.Osu.Difficulty.Evaluators
             // Calculate the probability of occurrence for each delta time in the past window of delta times and adjust the entropy.
             foreach (double x in deltaTimes)
             {
-                double probability = p(x, deltaTimes);
+                double probability = RhythmEvaluator.probability(x, deltaTimes);
 
                 entropy += -probability * Math.Log(probability);
             }
@@ -60,7 +60,7 @@ namespace osu.Game.Rulesets.Osu.Difficulty.Evaluators
         /// <param name="deltaTime1">The targetted delta time.</param>
         /// <param name="deltaTimes">The window of delta times.</param>
         /// <returns>The average probability of occurence.</returns>
-        private static double p(double deltaTime1, double[] deltaTimes)
+        private static double probability(double deltaTime1, double[] deltaTimes)
         {
             double probability = 0;
 
