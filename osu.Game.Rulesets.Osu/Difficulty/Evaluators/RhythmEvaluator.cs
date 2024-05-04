@@ -19,6 +19,21 @@ namespace osu.Game.Rulesets.Osu.Difficulty.Evaluators
         /// </summary>
         private const int coefiterations = 8;
 
+        /// <summary>
+        /// The power of the sine curve for the coefficient.
+        /// </summary>
+        private const int coefsinepower = 8;
+
+        /// <summary>
+        /// The power of the cosine curve for the coefficient.
+        /// </summary>
+        private const int coefcosinepower = 2;
+
+        /// <summary>
+        /// A multiplier for the entropy value.
+        /// </summary>
+        private const double entropymultiplier = 0.4;
+
         public static double EvaluateDifficultyOf(DifficultyHitObject current)
         {
             // Get the delta times for the past hit objects.
@@ -36,41 +51,68 @@ namespace osu.Game.Rulesets.Osu.Difficulty.Evaluators
                 entropy += -probability * Math.Log(probability);
             }
 
-            return entropy * 0.4;
+            return entropy * entropymultiplier;
         }
 
-        private static double p(double x, double[] deltaTimes)
+        /// <summary>
+        /// Calculates the average probability of occurrence of the specified delta time in the past window of delta times.
+        /// </summary>
+        /// <param name="deltaTime1">The targetted delta time.</param>
+        /// <param name="deltaTimes">The window of delta times.</param>
+        /// <returns>The average probability of occurence.</returns>
+        private static double p(double deltaTime1, double[] deltaTimes)
         {
-            // Calculates the coefficient for the rhythmic difference between two delta times.
-            double coef(double x, double i)
-                => Enumerable.Range(1, coefiterations)
-                     .Sum(n => Math.Pow(Math.Cos(x / i * n * Math.PI), 8) / biggestPrimeFactor[n])
-                     / Enumerable.Range(1, coefiterations).Sum(x => 1d / biggestPrimeFactor[x]);
-
             double probability = 0;
 
-            // Calculate the probability of occurrence for a delta time x in the past window of delta times.
-            foreach (double i in deltaTimes)
-                probability += coef(x, i);
+            foreach (double deltaTime2 in deltaTimes)
+                probability += coefficient(deltaTime1, deltaTime2);
 
-            // Get the average probability.
             return probability / deltaTimes.Length;
         }
 
         /// <summary>
-        /// An array with the biggest prime factor of the index.
+        /// Calculates the coefficient for the rhythmic difference between two delta times.
         /// </summary>
-        private static int[] biggestPrimeFactor = new int[]
+        /// <param name="deltaTime1">The first delta time.</param>
+        /// <param name="deltaTime2">The second delta time.</param>
+        /// <returns>The coefficient for the ratio between the two delta times.</returns>
+        private static double coefficient(double deltaTime1, double deltaTime2)
         {
-            0,
-            1,
-            2,
-            3,
-            2,
-            5,
-            3,
-            7,
-            2
-        };
+            double coef = 0;
+
+            // TODO: document why we do multiple iterations
+            for (int i = 1; i <= coefiterations; i++)
+            {
+                // TODO: what is calculated down there
+                double cos = Math.Pow(Math.Cos(deltaTime1 / deltaTime2 * i * Math.PI), coefcosinepower);
+                double sin = Math.Pow(Math.Sin(cos * Math.PI / 2), coefsinepower);
+
+                // TODO: why do we divide by the biggest prime factor
+                coef += sin / biggestPrimeFactor[i - 1];
+            }
+
+            // TODO: why do we divide by the inverse sum of the biggest prime factors
+            return coef / inverseBiggestPrimeFactorSum;
+        }
+
+        /// <summary>
+        /// A lookup table with the biggest prime factors, starting at the number 1.
+        /// </summary>
+        private static int[] biggestPrimeFactor =
+        [
+            1, // 1
+            2, // 2
+            3, // 3
+            2, // 4
+            5, // 5
+            3, // 6
+            7, // 7
+            2, // 8
+        ];
+
+        /// <summary>
+        /// The inverse sum of the first <see cref="coefiterations"/> numbers in <see cref="biggestPrimeFactor"/>.
+        /// </summary>
+        private static double inverseBiggestPrimeFactorSum = biggestPrimeFactor.Take(coefiterations).Sum(x => 1d / x);
     }
 }
