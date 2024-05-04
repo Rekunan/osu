@@ -3,7 +3,7 @@
 
 using System;
 using System.Linq;
-using osu.Game.Rulesets.Difficulty.Preprocessing;
+using osu.Game.Rulesets.Osu.Difficulty.Preprocessing;
 
 namespace osu.Game.Rulesets.Osu.Difficulty.Evaluators
 {
@@ -34,19 +34,19 @@ namespace osu.Game.Rulesets.Osu.Difficulty.Evaluators
         /// </summary>
         private const double entropymultiplier = 0.4;
 
-        public static double EvaluateDifficultyOf(DifficultyHitObject current)
+        public static double EvaluateDifficultyOf(OsuDifficultyHitObject current)
         {
-            // Get the delta times for the past hit objects.
-            double[] deltaTimes = Enumerable.Range(0, maxobjectcount)
+            // Get the strain times for the past hit objects.
+            double[] strainTimes = Enumerable.Range(0, maxobjectcount)
                 .TakeWhile(x => current.Previous(x - 1) is not null)
-                .Select(x => current.Previous(x - 1).DeltaTime).ToArray();
+                .Select(x => ((OsuDifficultyHitObject)current.Previous(x - 1)).StrainTime).ToArray();
 
             double entropy = 0;
 
-            // Calculate the probability of occurrence for each delta time in the past window of delta times and adjust the entropy.
-            foreach (double x in deltaTimes)
+            // Calculate the probability of occurrence for each strain time in the past window of strain times and adjust the entropy.
+            foreach (double x in strainTimes)
             {
-                double prob = probability(x, deltaTimes);
+                double prob = probability(x, strainTimes);
 
                 entropy += -prob * Math.Log(prob);
             }
@@ -55,28 +55,28 @@ namespace osu.Game.Rulesets.Osu.Difficulty.Evaluators
         }
 
         /// <summary>
-        /// Calculates the average probability of occurrence of the specified delta time in the past window of delta times.
+        /// Calculates the average probability of occurrence of the specified strain time in the past window of strain times.
         /// </summary>
-        /// <param name="deltaTime1">The targetted delta time.</param>
-        /// <param name="deltaTimes">The window of delta times.</param>
+        /// <param name="strainTime1">The targetted strain time.</param>
+        /// <param name="strainTimes">The window of strain times.</param>
         /// <returns>The average probability of occurence.</returns>
-        private static double probability(double deltaTime1, double[] deltaTimes)
+        private static double probability(double strainTime1, double[] strainTimes)
         {
             double probability = 0;
 
-            foreach (double deltaTime2 in deltaTimes)
-                probability += coefficient(deltaTime1, deltaTime2);
+            foreach (double strainTime2 in strainTimes)
+                probability += coefficient(strainTime1, strainTime2);
 
-            return probability / deltaTimes.Length;
+            return probability / strainTimes.Length;
         }
 
         /// <summary>
-        /// Calculates the coefficient for the rhythmic difference between two delta times.
+        /// Calculates the coefficient for the rhythmic difference between two strain times.
         /// </summary>
-        /// <param name="deltaTime1">The first delta time.</param>
-        /// <param name="deltaTime2">The second delta time.</param>
-        /// <returns>The coefficient for the ratio between the two delta times.</returns>
-        private static double coefficient(double deltaTime1, double deltaTime2)
+        /// <param name="strainTime1">The first strain time.</param>
+        /// <param name="strainTime2">The second strain time.</param>
+        /// <returns>The coefficient for the ratio between the two strain times.</returns>
+        private static double coefficient(double strainTime1, double strainTime2)
         {
             double coef = 0;
 
@@ -84,7 +84,7 @@ namespace osu.Game.Rulesets.Osu.Difficulty.Evaluators
             for (int i = 1; i <= coefiterations; i++)
             {
                 // TODO: what is calculated down there
-                double cos = Math.Pow(Math.Cos(deltaTime1 / deltaTime2 * i * Math.PI), coefcosinepower);
+                double cos = Math.Pow(Math.Cos(strainTime1 / strainTime2 * i * Math.PI), coefcosinepower);
                 double sin = Math.Pow(Math.Sin(cos * Math.PI / 2), coefsinepower);
 
                 // TODO: why do we divide by the biggest prime factor
