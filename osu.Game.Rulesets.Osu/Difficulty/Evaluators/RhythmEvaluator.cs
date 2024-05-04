@@ -100,7 +100,7 @@ namespace osu.Game.Rulesets.Osu.Difficulty.Evaluators
         /// </summary>
         private static int[] biggestPrimeFactor =
         [
-            1, // 1
+            1, // 1, actually undefined but we for our needs we'll consider it 1
             2, // 2
             3, // 3
             2, // 4
